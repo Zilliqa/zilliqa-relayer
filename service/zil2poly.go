@@ -468,6 +468,7 @@ func (s *ZilliqaSyncManager) commitHeader() int {
 				log.Warnf("ZilliqaSyncManager commitHeader get block height by hash, hash: %s error: %s", tx.ToHexString(), err.Error())
 			}
 		}
+
 		curr, err2 := s.polySdk.GetCurrentBlockHeight()
 		if err2 != nil {
 			log.Warnf("ZilliqaSyncManager commitHeader get current block height error: %s", err2.Error())
@@ -476,6 +477,33 @@ func (s *ZilliqaSyncManager) commitHeader() int {
 			log.Infof("ZilliqaSyncManager commitHeader h > 0 or curr > h")
 			break
 		}
+	}
+
+	// Let's check if the current poly stored tx block height is the last in
+	// the given dsblock num
+	curr, err2 := s.polySdk.GetCurrentBlockHeight()
+	if err2 != nil {
+		log.Warnf("ZilliqaSyncManager commitHeader get current block height error: %s", err2.Error())
+		return 1
+	}
+
+	currTxBlock, err3 := s.zilSdk.GetTxBlockVerbose(strconv.FormatUint(uint64(curr), 10))
+	if err3 != nil {
+		log.Warnf("ZilliqaSyncManager commitHeader get current tx block verbose error: %s", err3.Error())
+		return 1
+	}
+	dsNum, err4 := strconv.ParseUint(currTxBlock.Header.DSBlockNum, 10, 64)
+	if err4 != nil {
+		log.Warnf("ZilliqaSyncManager commitHeader, fail to parse ds num, err: %s\n", err4)
+		return 1
+	}
+
+	if (uint64(curr)+100)%dsNum == 99 {
+		// equivalent of (curr+1)%100 == 0
+		log.Infof("ZilliqaSyncManager commitHeader all the tx blocks for %d are synced.\n", dsNum)
+	} else {
+		log.Warnf("ZilliqaSyncManager commitHeader NOT all the tx blocks for %d are synced. Let's FAIL\n", dsNum)
+		return 1
 	}
 
 	log.Infof("ZilliqaSyncManager commitHeader - send transaction %s to poly chain and confirmed on height %d", tx.ToHexString(), h)
