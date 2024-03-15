@@ -124,17 +124,6 @@ T:
 		goto T
 	}
 	if txBlock.BlockHeader.DSBlockNum > s.currentDsBlockNum {
-		// as we can't control the order how the header4sync on the poly
-		// nodes after we sent it across,
-		// this will ensure that all the TXBlock for a given DSBlock are synced before
-		// we proceed with the next dsblock.
-		log.Infof("ZilliqaSyncManager - new DsBlock %d", txBlock.BlockHeader.DSBlockNum)
-		log.Infof("ZilliqaSyncManager - sync all the txblock for %d", s.currentDsBlockNum)
-		if res := s.commitHeader(); res != 0 {
-			log.Errorf("ZilliqaSyncManager MonitorChain -- commit header error, result %d", res)
-			return false
-		}
-
 		log.Infof("ZilliqaSyncManager - handleBlockHeader query ds block: %d\n", txBlock.BlockHeader.DSBlockNum)
 		dsBlock, err := s.zilSdk.GetDsBlockVerbose(strconv.FormatUint(txBlock.BlockHeader.DSBlockNum, 10))
 		if err != nil {
@@ -163,6 +152,7 @@ T:
 	log.Infof("ZilliqaSyncManager handleBlockHeader - header hash: %s\n", util.EncodeHex(blockHash))
 	raw, _ := s.polySdk.GetStorage(autils.HeaderSyncContractAddress.ToHexString(),
 		append(append([]byte(scom.MAIN_CHAIN), autils.GetUint64Bytes(s.cfg.ZilConfig.SideChainId)...), autils.GetUint64Bytes(height)...))
+
 	if len(raw) == 0 || bytes.Equal(raw, blockHash) {
 		s.header4sync = append(s.header4sync, rawBlock)
 	}
@@ -234,8 +224,7 @@ func (s *ZilliqaSyncManager) fetchLockDepositEvents(height uint64) bool {
 }
 
 func (s *ZilliqaSyncManager) handleLockDepositEvents(height uint64) error {
-	// remove later
-	return nil
+
 	log.Infof("ZilliqaSyncManager handleLockDepositEvents - height is %d", height)
 	retryList, err := s.db.GetAllRetry()
 	if err != nil {
@@ -428,9 +417,6 @@ func (s *ZilliqaSyncManager) commitHeader() int {
 		}
 	}
 
-	// remove after the first run
-	log.Infof("ZilliqaSyncManager commitHeader - exit without sync")
-	return 1
 	tx, err := s.polySdk.Native.Hs.SyncBlockHeader(
 		s.cfg.ZilConfig.SideChainId,
 		s.polySigner.Address,
